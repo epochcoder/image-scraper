@@ -43,11 +43,6 @@ public class ImageDownloader {
     private static final int THREADS = Runtime.getRuntime().availableProcessors();
 
     /**
-     * the connection timeout for retrieving pages
-     */
-    private static final int CONNECT_TIMEOUT = 1 * 1000;
-
-    /**
      * the digit template pattern
      */
     private static final String DIGIT_PATTERN = "\\$\\[digit\\]";
@@ -64,7 +59,7 @@ public class ImageDownloader {
     /**
      * the count at which the pattern will stop matching and figuring out URL's
      */
-    private int failureCount = 5;
+    private int failureCount = 10;
     /**
      * the range at which to start downloading,
      * the end will be auto-determined according to failureCount
@@ -143,35 +138,55 @@ public class ImageDownloader {
             try {
                 final Document document = Jsoup.connect(this.baseUrl + next)
                         .userAgent("ImageScraper")
-                        .timeout(CONNECT_TIMEOUT).get();
+                        .timeout(1000).get();
 
                 if (document != null) {
                     LOG.log(Level.FINE, "got document from url[" + this.baseUrl + next + "], parsing...");
+
                     final Elements elements = document.select(this.cssSelector);
                     if (elements != null && !elements.isEmpty()) {
                         LOG.log(Level.FINE, "found elements, looking for images");
-
                         for (Element image : elements) {
                             if ("img".equals(image.tagName())) {
                                 final String src = image.absUrl("src");
                                 if (!StringUtil.isNull(src)) {
                                     LOG.log(Level.FINE, "found image source[" + src + "], adding to list...");
                                     resources.add(new URL(src));
+
+                                    // reset fail count, we had success
+                                    failCount = 0;
+                                } else {
+                                    LOG.log(Level.WARNING, "found image[" + image
+                                            + "], but it had no source, increasing error count ["
+                                            + (failCount++ + "/" + this.failureCount) + "]");
                                 }
                             } else {
                                 LOG.log(Level.WARNING, "found element[" + image
-                                        + "], but it was not an image...");
+                                        + "], but it was not an image, increasing error count ["
+                                        + (failCount++ + "/" + this.failureCount) + "]");
                             }
                         }
+                    } else {
+                        // no elements for selector, could be empty page, anything really, increase failcount
+                        LOG.log(Level.WARNING, "could find images using selector["
+                                + this.cssSelector + "] on document["
+                                + this.baseUrl + next + "], increasing error count ["
+                                + (failCount++ + "/" + this.failureCount) + "]");
                     }
+                } else {
+                    // no document, increase failcount
+                    LOG.log(Level.WARNING, "could not open document for ["
+                            + this.baseUrl + next + "], increasing error count ["
+                            + (failCount++ + "/" + this.failureCount) + "]");
                 }
             } catch (IOException e) {
                 LOG.log(Level.WARNING, "could not open/read stream to ["
-                        + this.baseUrl + next + "], increasing error count", e);
-                failCount++;
+                        + this.baseUrl + next + "], increasing error count ["
+                        + (failCount++ + "/" + this.failureCount) + "]", e);
             }
         }
 
+        LOG.log(Level.INFO, "got resources to download\n" + resources);
         return Collections.unmodifiableList(resources);
     }
 
@@ -248,7 +263,6 @@ public class ImageDownloader {
                 }));
             }
         }
-
 
         return tasks;
     }
