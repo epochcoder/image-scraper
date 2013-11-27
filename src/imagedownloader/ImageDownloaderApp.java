@@ -1,7 +1,3 @@
-/*
- * ImageDownloaderApp.java
- */
-
 package imagedownloader;
 
 import org.jdesktop.application.Application;
