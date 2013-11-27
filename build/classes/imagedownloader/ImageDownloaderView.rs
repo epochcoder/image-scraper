@@ -1,2 +1,0 @@
-imagedownloader.MyCustomFilter
-imagedownloader.ImageDownloaderView

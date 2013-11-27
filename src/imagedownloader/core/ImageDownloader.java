@@ -158,12 +158,12 @@ public class ImageDownloader {
                                 } else {
                                     LOG.log(Level.WARNING, "found image[" + image
                                             + "], but it had no source, increasing error count ["
-                                            + (failCount++ + "/" + this.failureCount) + "]");
+                                            + (++failCount + "/" + this.failureCount) + "]");
                                 }
                             } else {
                                 LOG.log(Level.WARNING, "found element[" + image
                                         + "], but it was not an image, increasing error count ["
-                                        + (failCount++ + "/" + this.failureCount) + "]");
+                                        + (++failCount + "/" + this.failureCount) + "]");
                             }
                         }
                     } else {
@@ -171,18 +171,18 @@ public class ImageDownloader {
                         LOG.log(Level.WARNING, "could find images using selector["
                                 + this.cssSelector + "] on document["
                                 + this.baseUrl + next + "], increasing error count ["
-                                + (failCount++ + "/" + this.failureCount) + "]");
+                                + (++failCount + "/" + this.failureCount) + "]");
                     }
                 } else {
                     // no document, increase failcount
                     LOG.log(Level.WARNING, "could not open document for ["
                             + this.baseUrl + next + "], increasing error count ["
-                            + (failCount++ + "/" + this.failureCount) + "]");
+                            + (++failCount + "/" + this.failureCount) + "]");
                 }
             } catch (IOException e) {
                 LOG.log(Level.WARNING, "could not open/read stream to ["
                         + this.baseUrl + next + "], increasing error count ["
-                        + (failCount++ + "/" + this.failureCount) + "]", e);
+                        + (++failCount + "/" + this.failureCount) + "]", e);
             }
         }
 
