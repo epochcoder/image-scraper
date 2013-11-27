@@ -349,7 +349,7 @@ public class ImageDownloaderView extends FrameView {
                     @Override
                     public void run() {
                         final ImageDownloader downloader = new ImageDownloader(url,
-                                urlTemplate, cssSelector, rangeStart, 5);
+                                urlTemplate, cssSelector, rangeStart, 15);
                         downloader.setPaddedDigits(padded);
 
                         // search for images
