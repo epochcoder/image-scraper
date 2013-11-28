@@ -91,10 +91,7 @@ public class ImageDownloader {
     public ImageDownloader(String baseURL, String urlTemplate, String selector,
             int startRange, int failureCount) {
         this.baseUrl = baseURL;
-
-        if (!StringUtil.isNull(urlTemplate)) {
-            this.urlTemplate = urlTemplate;
-        }
+        this.urlTemplate = urlTemplate;
 
         if (!StringUtil.isNull(selector)) {
             this.cssSelector = selector;
@@ -125,61 +122,83 @@ public class ImageDownloader {
 
     /**
      * Gets all URL references by using the set up patterns and ranges
+     * @param information used to keep track of progress
      * @return a non-null list of URL objects;
      */
-    public List<URL> searchForImages() {
+    public List<URL> searchForImages(final DownloadInformation information) {
+        final String uniqueId = "retrieve-info";
+        final List<String> visitedLinks = new ArrayList<>();
         final List<URL> resources = new ArrayList<>();
 
+        boolean hasTemplate = !StringUtil.isNull(this.urlTemplate);
         int start = this.startRange;
         int failCount = 0;
 
+        information.onStart(uniqueId, -1);
         while (failCount <= this.failureCount) {
-            final String next = this.determineNextURL(start++);
+            final String next = hasTemplate ? this.determineNextURL(start++) : null;
             try {
-                final Document document = Jsoup.connect(this.baseUrl + next)
-                        .userAgent("ImageScraper")
-                        .timeout(1000).get();
+                final String cUrl = this.baseUrl + (next == null ? "" : next);
+                if (!visitedLinks.contains(cUrl)) {
+                    final Document document = Jsoup.connect(cUrl)
+                            .userAgent("ImageScraper")
+                            .timeout(1000).get();
 
-                if (document != null) {
-                    LOG.log(Level.FINE, "got document from url[" + this.baseUrl + next + "], parsing...");
+                    // add to visited irrigardeless of failure
+                    visitedLinks.add(cUrl);
 
-                    final Elements elements = document.select(this.cssSelector);
-                    if (elements != null && !elements.isEmpty()) {
-                        LOG.log(Level.FINE, "found elements, looking for images");
-                        for (Element image : elements) {
-                            if ("img".equals(image.tagName())) {
-                                final String src = image.absUrl("src");
-                                if (!StringUtil.isNull(src)) {
-                                    LOG.log(Level.FINE, "found image source[" + src + "], adding to list...");
-                                    resources.add(new URL(src));
+                    if (document != null) {
+                        LOG.log(Level.FINE, "got document from url[" + this.baseUrl + next + "], parsing...");
 
-                                    // reset fail count, we had success
-                                    failCount = 0;
+                        final Elements elements = document.select(this.cssSelector);
+                        if (elements != null && !elements.isEmpty()) {
+                            LOG.log(Level.FINE, "found elements, looking for images");
+                            for (Element image : elements) {
+                                if ("img".equals(image.tagName())) {
+                                    final String src = image.absUrl("src");
+                                    if (!StringUtil.isNull(src)) {
+                                        LOG.log(Level.FINE, "found image source[" + src + "], adding to list...");
+                                        final URL url = new URL(src);
+                                        if (!resources.contains(url)) {
+                                            resources.add(url);
+                                            information.onStatusChange(
+                                                    uniqueId, (start - 1), -1, src);
+                                        }
+
+                                        // reset fail count, we had success
+                                        failCount = 0;
+                                    } else {
+                                        LOG.log(Level.WARNING, "found image[" + image
+                                                + "], but it had no source, increasing error count ["
+                                                + (++failCount + "/" + this.failureCount) + "]");
+                                    }
                                 } else {
-                                    LOG.log(Level.WARNING, "found image[" + image
-                                            + "], but it had no source, increasing error count ["
+                                    LOG.log(Level.WARNING, "found element[" + image
+                                            + "], but it was not an image, increasing error count ["
                                             + (++failCount + "/" + this.failureCount) + "]");
                                 }
-                            } else {
-                                LOG.log(Level.WARNING, "found element[" + image
-                                        + "], but it was not an image, increasing error count ["
-                                        + (++failCount + "/" + this.failureCount) + "]");
                             }
+                        } else {
+                            // no elements for selector, could be empty page, anything really, increase failcount
+                            LOG.log(Level.WARNING, "could find images using selector["
+                                    + this.cssSelector + "] on document["
+                                    + cUrl + "], increasing error count ["
+                                    + (++failCount + "/" + this.failureCount) + "]");
                         }
                     } else {
-                        // no elements for selector, could be empty page, anything really, increase failcount
-                        LOG.log(Level.WARNING, "could find images using selector["
-                                + this.cssSelector + "] on document["
-                                + this.baseUrl + next + "], increasing error count ["
+                        // no document, increase failcount
+                        LOG.log(Level.WARNING, "could not open document for ["
+                                + cUrl + "], increasing error count ["
                                 + (++failCount + "/" + this.failureCount) + "]");
                     }
                 } else {
-                    // no document, increase failcount
-                    LOG.log(Level.WARNING, "could not open document for ["
-                            + this.baseUrl + next + "], increasing error count ["
+                    // already seen, increase failcount
+                    LOG.log(Level.WARNING, "already seen url["
+                            + cUrl + "], increasing error count ["
                             + (++failCount + "/" + this.failureCount) + "]");
                 }
             } catch (IOException e) {
+                information.onException(uniqueId, e);
                 LOG.log(Level.WARNING, "could not open/read stream to ["
                         + this.baseUrl + next + "], increasing error count ["
                         + (++failCount + "/" + this.failureCount) + "]", e);
@@ -187,6 +206,7 @@ public class ImageDownloader {
         }
 
         LOG.log(Level.INFO, "got resources to download\n" + resources);
+        information.onComplete(uniqueId);
         return Collections.unmodifiableList(resources);
     }
 

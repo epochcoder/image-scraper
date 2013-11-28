@@ -318,7 +318,6 @@ public class ImageDownloaderView extends FrameView {
     private void butStartActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_butStartActionPerformed
         if (!StringUtil.isNull(this.txtUrl.getText())
                 && !StringUtil.isNull(this.txtCss.getText())
-                && !StringUtil.isNull(this.txtUrlTemplate.getText())
                 && StringUtil.isNumber(String.valueOf(spiRangeStart.getValue()))
                 && this.directory != null) {
             final String path = this.directory.getAbsolutePath();
@@ -353,7 +352,30 @@ public class ImageDownloaderView extends FrameView {
                         downloader.setPaddedDigits(padded);
 
                         // search for images
-                        final List<URL> urls = downloader.searchForImages();
+                        final List<URL> urls = downloader.searchForImages(new DownloadInformation() {
+                            @Override
+                            public void onStart(String uniqueId, int total) {
+                                statusMessageLabel.setText("Retrieving links...");
+                                messageTimer.restart();
+                                progressBar.setVisible(true);
+                                progressBar.setIndeterminate(true);
+                            }
+
+                            @Override
+                            public void onException(String uniqueId, Throwable exception) {}
+
+                            @Override
+                            public void onStatusChange(String uniqueId, int current, int total, String currUrl) {
+                                statusMessageLabel.setText("Retrieved link [" + current + "] " + currUrl);
+                                messageTimer.restart();
+                            }
+
+                            @Override
+                            public void onComplete(String uniqueId) {
+                                statusMessageLabel.setText("Retrieved all links");
+                                messageTimer.restart();
+                            }
+                        });
 
                         // download them
                         final Set<Future<?>> tasks = downloader.downloadResources(urls, path, new DownloadInformation() {
