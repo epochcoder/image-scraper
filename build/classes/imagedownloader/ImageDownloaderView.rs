@@ -1,0 +1,2 @@
+imagedownloader.MyCustomFilter
+imagedownloader.ImageDownloaderView
