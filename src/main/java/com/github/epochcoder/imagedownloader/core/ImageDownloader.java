@@ -7,6 +7,8 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -26,8 +28,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Simple image scraper
@@ -37,12 +37,17 @@ public class ImageDownloader {
     /**
      * the class logger
      */
-    private static final Logger LOG = Logger.getLogger(ImageDownloader.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(ImageDownloader.class);
 
     /**
      * the amount of threads to run in
      */
     private static final int THREADS = Runtime.getRuntime().availableProcessors();
+
+    /**
+     * the timeout for retrieving a document
+     */
+    private static final int TIMEOUT = 5000;
 
     /**
      * the digit template pattern
@@ -144,22 +149,22 @@ public class ImageDownloader {
                 if (!visitedLinks.contains(cUrl)) {
                     final Document document = Jsoup.connect(cUrl)
                             .userAgent("ImageScraper")
-                            .timeout(1000).get();
+                            .timeout(TIMEOUT).get();
 
                     // add to visited irrigardeless of failure
                     visitedLinks.add(cUrl);
 
                     if (document != null) {
-                        LOG.log(Level.FINE, "got document from url[" + this.baseUrl + next + "], parsing...");
+                        LOG.trace("Got document from url[{}], parsing...", this.baseUrl + next);
 
                         final Elements elements = document.select(this.cssSelector);
                         if (elements != null && !elements.isEmpty()) {
-                            LOG.log(Level.FINE, "found elements, looking for images");
+                            LOG.trace("Found elements, looking for images");
                             for (Element image : elements) {
                                 if ("img".equals(image.tagName())) {
                                     final String src = image.absUrl("src");
                                     if (!StringUtil.isNull(src)) {
-                                        LOG.log(Level.FINE, "found image source[" + src + "], adding to list...");
+                                        LOG.trace("Found image source[{}], adding to list...", src);
                                         final URL url = new URL(src);
                                         if (!resources.contains(url)) {
                                             resources.add(url);
@@ -170,45 +175,39 @@ public class ImageDownloader {
                                         // reset fail count, we had success
                                         failCount = 0;
                                     } else {
-                                        LOG.log(Level.WARNING, "found image[" + image
-                                                + "], but it had no source, increasing error count ["
-                                                + (++failCount + "/" + this.failureCount) + "]");
+                                        LOG.warn("Found image[{}], but it had no source, increasing error count [{}/{}]",
+                                                image, ++failCount, this.failureCount);
                                     }
                                 } else {
-                                    LOG.log(Level.WARNING, "found element[" + image
-                                            + "], but it was not an image, increasing error count ["
-                                            + (++failCount + "/" + this.failureCount) + "]");
+                                    LOG.warn("Found image[{}], but it was not an image, increasing error count [{}/{}]",
+                                            image, ++failCount, this.failureCount);
                                 }
                             }
                         } else {
                             // no elements for selector, could be empty page, anything really, increase failcount
-                            LOG.log(Level.WARNING, "could find images using selector["
-                                    + this.cssSelector + "] on document["
-                                    + cUrl + "], increasing error count ["
-                                    + (++failCount + "/" + this.failureCount) + "]");
+                            LOG.warn("Could find images using selector[{}] on document[{}], increasing error count [{}/{}]",
+                                    this.cssSelector, cUrl, ++failCount, this.failureCount);
                         }
                     } else {
                         // no document, increase failcount
-                        LOG.log(Level.WARNING, "could not open document for ["
-                                + cUrl + "], increasing error count ["
-                                + (++failCount + "/" + this.failureCount) + "]");
+                        LOG.warn("Could not open document/timeout for [{}], increasing error count [{}/{}]",
+                                cUrl, ++failCount, this.failureCount);
                     }
                 } else {
                     // already seen, increase failcount
-                    LOG.log(Level.WARNING, "already seen url["
-                            + cUrl + "], increasing error count ["
-                            + (++failCount + "/" + this.failureCount) + "]");
+                    LOG.warn("Already seen url[{}], increasing error count [{}/{}]",
+                            cUrl, ++failCount, this.failureCount);
                 }
             } catch (IOException e) {
                 information.onException(uniqueId, e);
-                LOG.log(Level.WARNING, "could not open/read stream to ["
-                        + this.baseUrl + next + "], increasing error count ["
-                        + (++failCount + "/" + this.failureCount) + "]", e);
+                LOG.warn("Could not open/read stream to [{}], increasing error count [{}/{}]",
+                        this.baseUrl + next, ++failCount, this.failureCount);
             }
         }
 
-        LOG.log(Level.INFO, "got resources to download\n" + resources);
+        LOG.debug("Got resources to download\n{}", resources);
         information.onComplete(uniqueId);
+
         return Collections.unmodifiableList(resources);
     }
 
@@ -252,10 +251,8 @@ public class ImageDownloader {
                 resourceThreads.put(0, resources);
             }
 
-
             // now start processing
-            LOG.log(Level.FINE, "starting to process/download ["
-                    + resourceThreads + "]");
+            LOG.trace("Starting to process/download [{}]", resourceThreads);
 
             for (Iterator<Map.Entry<Integer, List<URL>>> resourceIterator =
                     resourceThreads.entrySet().iterator(); resourceIterator.hasNext();) {
@@ -295,7 +292,7 @@ public class ImageDownloader {
      * @param path the root system path to save at
      * @throws Exception
      */
-    private long download(URL url, File path) throws URISyntaxException, IOException  {
+    private static long download(URL url, File path) throws URISyntaxException, IOException  {
         final String uriPath = url.toURI().toString();
         final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         final InputStream is = conn.getInputStream();

@@ -6,6 +6,7 @@ package com.github.epochcoder.imagedownloader.core;
  * @author Willie Scholtz
  */
 public interface DownloadInformation {
+
     /**
      * called when the downloading starts with the total amount of files to be scraped
      * @param uniqueId the unique id of the current downloader

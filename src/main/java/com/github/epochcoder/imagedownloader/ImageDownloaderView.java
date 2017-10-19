@@ -360,7 +360,10 @@ public class ImageDownloaderView extends FrameView {
                             }
 
                             @Override
-                            public void onException(String uniqueId, Throwable exception) {}
+                            public void onException(String uniqueId, Throwable exception) {
+                                statusMessageLabel.setText(exception.toString());
+                                messageTimer.restart();
+                            }
 
                             @Override
                             public void onStatusChange(String uniqueId, int current, int total, String currUrl) {

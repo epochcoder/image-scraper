@@ -1,4 +1,4 @@
-image-scraper
+Image Scraper
 =============
 
-simple multithreaded java image scraper using url templates and CSS selectors
+A Simple multithreaded java image scraper using url templates and CSS selectors
